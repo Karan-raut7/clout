@@ -1,0 +1,70 @@
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Clout Room</title>
+
+    <link rel="stylesheet" href="/static/style.css?v=2">
+</head>
+
+<body>
+
+    <div class="chat-container">
+
+        <!-- Header -->
+        <header class="chat-header">
+
+            <div class="room-info">
+                <button class="back-button">←</button>
+
+                <div>
+                    <h1>Clout</h1>
+                    <p>🟢 Room {{ room_id }}</p>
+                </div>
+            </div>
+
+            <button class="menu-button">⋮</button>
+
+        </header>
+
+
+        <!-- Messages -->
+        <main class="chat-messages">
+
+            <ul id="messages">
+
+                <!-- Messages will be inserted here by room.js -->
+
+            </ul>
+
+        </main>
+
+
+        <!-- Message Input -->
+        <footer class="chat-input-area">
+
+            <input
+                id="messageText"
+                type="text"
+                autocomplete="off"
+                placeholder="Type a message..."
+            >
+
+            <button id="sendButton" type="button">
+                ➤
+            </button>
+
+        </footer>
+
+    </div>
+
+    <script src="/static/room.js"></script>
+
+</body>
+
+</html>
+
