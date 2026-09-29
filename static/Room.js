@@ -156,3 +156,14 @@ function sendMessage() {
 
     input.value = "";
 }
+
+const backButton = document.getElementById("backButton");
+const menuButton = document.getElementById("menuButton");
+
+backButton.addEventListener("click", () => {
+    window.location.href = "/";
+});
+
+menuButton.addEventListener("click", () => {
+    alert("Menu coming soon!");
+});

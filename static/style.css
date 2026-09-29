@@ -1,22 +1,73 @@
+@media (max-width: 600px) {
+    html,
+    body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+    }
+
+    body {
+        display: block;
+        min-height: 100dvh;
+    }
+
+    .chat-container {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100dvh;
+        min-height: 0;
+        margin: 0;
+        max-width: none;
+        border-radius: 0;
+    }
+    
+}
+html,
+body {
+    margin: 0;
+    padding: 0;
+}
+
 /* =========================
    Responsive Design
 ========================= */
 
-/* Tablet */
 @media (max-width: 768px) {
 
+    html,
+    body {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+    }
+
     .chat-container {
-        max-width: 100%;
-        height: 100vh;
+        width: 100%;
+        max-width: none;
+        height: 100dvh;
+        min-height: 0;
+        margin: 0;
+
+        border-radius: 0;
+
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
     }
 
     .chat-header {
+        flex-shrink: 0;
         height: 65px;
         padding: 0 15px;
     }
 
     .room-info {
         gap: 10px;
+        min-width: 0;
     }
 
     .room-info h1 {
@@ -28,20 +79,73 @@
     }
 
     .chat-messages {
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
         padding: 15px;
     }
 
+    #messages {
+        gap: 8px;
+    }
+
     #messages .message {
-        max-width: 80%;
+        max-width: 85%;
+        padding: 9px 12px;
+        font-size: 14px;
+
+        overflow-wrap: anywhere;
+        word-break: break-word;
     }
 
     .chat-input-area {
-        padding: 10px 15px;
+        flex-shrink: 0;
+
+        min-height: 65px;
+
+        padding: 8px 10px;
+        padding-bottom: calc(
+            8px + env(safe-area-inset-bottom)
+        );
+
+        gap: 8px;
+    }
+
+    #messageText {
+        min-width: 0;
+        width: 100%;
+        height: 42px;
+
+        padding: 0 14px;
+
+        font-size: 16px;
+    }
+
+    #sendButton {
+        flex-shrink: 0;
+
+        width: 42px;
+        height: 42px;
+
+        font-size: 16px;
+    }
+
+    .back-button,
+    .menu-button {
+        flex-shrink: 0;
+
+        width: 36px;
+        height: 36px;
+
+        font-size: 18px;
     }
 }
 
 
-/* Mobile */
+/* =========================
+   Small Phones
+========================= */
+
 @media (max-width: 480px) {
 
     .chat-header {
@@ -61,44 +165,81 @@
         font-size: 11px;
     }
 
-    .back-button,
-    .menu-button {
-        width: 36px;
-        height: 36px;
-        font-size: 18px;
-    }
-
     .chat-messages {
-        padding: 12px 10px;
-    }
-
-    #messages {
-        gap: 8px;
+        padding: 10px;
     }
 
     #messages .message {
-    max-width: 85%;
-    padding: 9px 12px;
-    font-size: 14px;
-    overflow-wrap: anywhere;
-}
+        max-width: 88%;
+        padding: 9px 12px;
+        font-size: 14px;
+    }
 
     .chat-input-area {
-        min-height: 65px;
-        padding: 8px 10px;
-        gap: 8px;
+        min-height: 62px;
+        padding: 8px;
+        padding-bottom: calc(
+            8px + env(safe-area-inset-bottom)
+        );
     }
 
     #messageText {
         height: 42px;
-        padding: 0 14px;
-        font-size: 14px;
+        font-size: 16px;
     }
 
     #sendButton {
         width: 42px;
         height: 42px;
+    }
+}
+
+@media (max-width: 600px) {
+    .message-form {
+        bottom: 15px;
+        left: 16px;
+        right: 16px;
+        gap: 12px;
+    }
+
+    .message-form input {
+        height: 54px;
         font-size: 16px;
+    }
+
+    .message-form button {
+        width: 54px;
+        height: 54px;
+    }
+}
+
+    /* MESSAGE INPUT */
+    .chat-input-area {
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+
+        padding: 10px;
+        padding-bottom: calc(
+            10px + env(safe-area-inset-bottom)
+        );
+
+        width: 100%;
+        box-sizing: border-box;
+    }
+
+    #messageText {
+        flex: 1;
+        min-width: 0;
+        width: 100%;
+        box-sizing: border-box;
+
+        font-size: 16px;
+    }
+
+    #sendButton {
+        flex-shrink: 0;
     }
 
 
@@ -126,7 +267,7 @@
     #loginForm button {
         height: 48px;
     }
-}
+
 
 * {
     margin: 0;
@@ -153,7 +294,7 @@ body {
     width: 100%;
     max-width: 900px;
     height: 100vh;
-    margin: auto;
+    margin: 0px;
 
     display: flex;
     flex-direction: column;
@@ -248,8 +389,9 @@ body {
     gap: 10px;
 
     padding: 12px 20px;
-
     border-top: 1px solid #333;
+
+    
 }
 
 #messageText {
@@ -508,4 +650,298 @@ body {
 
 #registerForm button:hover {
     opacity: 0.9;
+}
+/* =========================
+   Home / Room List
+========================= */
+
+.box {
+    width: 100%;
+    max-width: 500px;
+    padding: 35px;
+
+    background: #111;
+    border: 1px solid #222;
+    border-radius: 16px;
+
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+}
+
+.box h1 {
+    font-size: 42px;
+    letter-spacing: -1px;
+    margin-bottom: 25px;
+}
+
+.box h1::after {
+    content: ".";
+    color: #888;
+}
+
+.box h2 {
+    font-size: 18px;
+    margin-bottom: 12px;
+}
+
+.box input {
+    width: calc(100% - 85px);
+    height: 45px;
+
+    padding: 0 14px;
+
+    border: 1px solid #333;
+    border-radius: 10px;
+
+    outline: none;
+
+    background: #222;
+    color: white;
+
+    font-size: 14px;
+}
+
+.box input::placeholder {
+    color: #777;
+}
+
+.box input:focus {
+    border-color: #666;
+}
+
+#createRoomButton {
+    width: 75px;
+    height: 45px;
+
+    margin-left: 6px;
+
+    border: none;
+    border-radius: 10px;
+
+    background: white;
+    color: black;
+
+    font-weight: 600;
+    cursor: pointer;
+}
+
+#createRoomButton:hover {
+    opacity: 0.9;
+}
+
+/* =========================
+   Room List
+========================= */
+
+#roomList {
+    list-style: none;
+
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+
+    margin-top: 15px;
+}
+
+#roomList li {
+    min-height: 48px;
+
+    padding: 8px 10px;
+
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+
+    background: #1b1b1b;
+    border: 1px solid #292929;
+    border-radius: 10px;
+
+    color: white;
+}
+
+#roomList button {
+    height: 34px;
+
+    padding: 0 12px;
+
+    border: none;
+    border-radius: 8px;
+
+    background: #2a2a2a;
+    color: white;
+
+    cursor: pointer;
+}
+
+#roomList button:hover {
+    background: #333;
+}
+
+#errorMessage {
+    margin-top: 15px;
+
+    color: #ff6b6b;
+    font-size: 14px;
+}
+
+
+/* =========================
+   Home - Mobile
+========================= */
+
+
+.input-area {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px;
+    padding-bottom: calc(12px + env(safe-area-inset-bottom));
+}
+#messageInput {
+    flex: 1;
+    min-width: 0;
+}
+
+
+
+@media (max-width: 600px) {
+
+    .chat-container {
+        width: 100%;
+        height: 100dvh;
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    .chat-messages {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow-y: auto;
+    }
+
+    .chat-input-area {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+
+        height: 70px;
+
+        display: flex;
+        align-items: center;
+        gap: 10px;
+
+        padding: 10px 12px;
+        padding-bottom: calc(10px + env(safe-area-inset-bottom));
+
+        background: #111;
+        border-top: 1px solid #333;
+
+        z-index: 1000;
+    }
+
+    #messageText {
+        flex: 1;
+        min-width: 0;
+        width: auto;
+        height: 45px;
+
+        box-sizing: border-box;
+        font-size: 16px;
+    }
+
+    #sendButton {
+        flex: 0 0 45px;
+        width: 45px;
+        height: 45px;
+    }
+
+    .chat-messages {
+        padding-bottom: 85px;
+    }
+} 
+.legal-container {
+    width: min(900px, 92%);
+    margin: 40px auto;
+    padding: 30px;
+    border-radius: 30px;
+}
+
+.legal-header {
+    margin-bottom: 40px;
+}
+
+.legal-header h1 {
+    margin-bottom: 5px;
+}
+
+.legal-header h2 {
+    margin-bottom: 8px;
+}
+
+.legal-header p {
+    opacity: 0.65;
+    font-size: 14px;
+}
+
+.legal-content section {
+    margin-bottom: 32px;
+}
+
+.legal-content h2 {
+    margin-bottom: 12px;
+}
+
+.legal-content p,
+.legal-content li {
+    line-height: 1.7;
+}
+
+.legal-content ul {
+    padding-left: 25px;
+}
+
+.legal-content a {
+    text-decoration: underline;
+}
+
+.legal-footer {
+    margin-top: 40px;
+    padding-top: 20px;
+    border-top: 1px solid #ddd;
+    display: flex;
+    gap: 10px;
+}
+.terms-checkbox {
+    display: flex;
+    align-items: center;
+    width: 320px;
+    margin: 15px auto 20px;
+    gap: 10px;
+    text-align: left;
+    font-size: 14px;
+    line-height: 1.4;
+}
+
+.terms-checkbox input[type="checkbox"] {
+    width: 18px !important;
+    height: 18px !important;
+    min-width: 18px;
+    margin: 0;
+    padding: 0;
+    flex-shrink: 0;
+    cursor: pointer;
+}
+
+.terms-checkbox span {
+    width: auto;
+    flex: 1;
+}
+
+.terms-checkbox a {
+    color: #8b5cf6;
+    text-decoration: underline;
 }

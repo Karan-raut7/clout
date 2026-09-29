@@ -26,6 +26,7 @@ class UserCreate(BaseModel):
     username: str
     email: str
     password: str
+    terms_accepted: bool
 
 
 class UserLogin(BaseModel):
@@ -68,11 +69,30 @@ def profile(
         "username": user.username,
         "email": user.email
     }
+@app.get("/terms")
+async def terms_page(request: Request):
+    return templates.TemplateResponse(
+        request=request,
+        name="terms.html",
+        context={}
+    )
+@app.get("/privacy")
+async def privacy_page(request: Request):
+    return templates.TemplateResponse(
+        request=request,
+        name="privacy.html",
+        context={}
+    )
 
 @app.post("/register")
 def register(user_data:UserCreate,
              db: Session = Depends(get_db)
              ):
+    if not user_data.terms_accepted:
+        raise HTTPException(
+        status_code=400,
+        detail="You must accept the Terms & Conditions"
+    )
     existing_user =db.query(User).filter(
         User.username == user_data.username
         ).first()
@@ -90,10 +110,12 @@ def register(user_data:UserCreate,
     hashed_password = password_hasher.hash(user_data.password)
 
     new_user = User(
-        username = user_data.username,
-        email = user_data.email,
-        hashed_password = hashed_password
-    )
+    username=user_data.username,
+    email=user_data.email,
+    hashed_password=hashed_password,
+    terms_accepted=True,
+    terms_version="1.0"
+)
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
