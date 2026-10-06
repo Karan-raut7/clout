@@ -3,7 +3,6 @@ from database import Base
 from sqlalchemy import Column, Integer, String, ForeignKey, DateTime
 from sqlalchemy.sql import func
 
-
 class User(Base):
     __tablename__ = "users"
 
@@ -11,9 +10,25 @@ class User(Base):
     username = Column(String, unique=True, nullable=False)
     email = Column(String, unique=True, nullable=False)
     hashed_password = Column(String, nullable=False)
+
     terms_accepted = Column(Boolean, nullable=False, default=False)
     terms_version = Column(String, nullable=False, default="1.0")
-    terms_accepted_at = Column(DateTime(timezone=True), server_default=func.now())
+    terms_accepted_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now()
+    )
+
+    # Email verification
+    is_verified = Column(Boolean, nullable=False, default=False)
+    
+    verification_token_hash = Column(
+    String,
+    nullable=True
+)
+    verification_token_expires_at = Column(
+    DateTime(timezone=True),
+    nullable=True
+)
 
 
 class Room(Base):

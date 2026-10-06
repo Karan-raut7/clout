@@ -8,10 +8,11 @@
 
     <title>Clout Room</title>
 
-    <link rel="stylesheet" href="/static/style.css?v=3">
+    <link rel="stylesheet" href="/static/style.css?v=4">
 </head>
 
 <body>
+    
 
     <div class="chat-container">
 
@@ -22,14 +23,17 @@
                 <button class="back-button" id="backButton">←</button>
 
                 <div>
-                    <h1>Clout</h1>
+                    
+                    <h1 id="room-name">{{room_name }}</h1>
                     <p>🟢 Room {{ room_id }}</p>
+                    
                 </div>
             </div>
 
             <button class="menu-button" id="menuButton">⋮</button>
 
         </header>
+       
 
 
         <!-- Messages -->
@@ -42,6 +46,7 @@
             </ul>
 
         </main>
+        
 
 
         <!-- Message Input -->
@@ -54,6 +59,7 @@
                 placeholder="Type a message..."
             >
 
+
             <button id="sendButton" type="button">
                 ➤
             </button>
@@ -61,8 +67,12 @@
         </footer>
 
     </div>
+     <div id="messageMenu" class="message-menu" style="display: none;">
+    <button id="editMessage">✏ Edit</button>
+    <button id="deleteMessage">🗑 Delete</button>
+</div>
 
-    <script src="/static/room.js"></script>
+    <script src="/static/room.js?v=2"></script>
 
 </body>
 

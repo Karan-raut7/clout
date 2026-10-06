@@ -181,7 +181,11 @@ async function createRoom() {
         console.error(error);
     }
 }
-    
+    const logoutButton = document.getElementById("logout");
+logoutButton.addEventListener("click", () => {
+    localStorage.removeItem("access_token");
+    window.location.href = "/login-page";
+});
     
 
     
@@ -194,6 +198,7 @@ roomNameInput.addEventListener("keydown", function (event) {
 
     }
 });
+
 
 loadRooms();
 

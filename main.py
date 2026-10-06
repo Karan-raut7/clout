@@ -2,7 +2,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect,HTTPException, Depen
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from fastapi import Request
 import json
 from argon2 import PasswordHasher
@@ -14,6 +14,17 @@ from fastapi.security import OAuth2PasswordBearer
 from fastapi.security import OAuth2PasswordRequestForm
 from database import engine
 from models import Base
+from dotenv import load_dotenv
+from datetime import datetime, timedelta, timezone
+
+from services.email import send_email
+from services.tokens import generate_verification_token
+
+import hashlib
+load_dotenv()
+
+
+
 Base.metadata.create_all(bind=engine)
 ph = PasswordHasher()
 app = FastAPI()
@@ -28,6 +39,9 @@ class UserCreate(BaseModel):
     password: str
     terms_accepted: bool
 
+class MessageUpdate(BaseModel):
+    content: str = Field(..., min_length=1, max_length=500)
+
 
 class UserLogin(BaseModel):
     username: str
@@ -38,37 +52,53 @@ class RegisterRequest(BaseModel):
     email: str
     password: str
 
-@app.get("/profile")
-def profile(
+
+def get_current_user(
     token: str = Depends(oauth2_scheme),
     db: Session = Depends(get_db)
 ):
+    # Get user ID from JWT
     user_id = verify_access_token(token)
 
+    # Token is invalid or expired
     if user_id is None:
         raise HTTPException(
             status_code=401,
             detail="Invalid or expired token"
         )
-    user = db.query(User).filter(
-    User.id == int(user_id)
-).first()
 
+    # Find the user in database
     user = db.query(User).filter(
         User.id == int(user_id)
     ).first()
 
+    # User doesn't exist
     if user is None:
         raise HTTPException(
             status_code=404,
             detail="User not found"
         )
+    # Email must be verified
+    if not user.is_verified:
+        raise HTTPException(
+            status_code=403,
+            detail="Please verify your email first."
+        )
 
+    return user
+
+
+@app.get("/profile")
+def profile(
+    current_user: User = Depends(get_current_user)
+):
     return {
-        "id": user.id,
-        "username": user.username,
-        "email": user.email
+        "id": current_user.id,
+        "username": current_user.username,
+        "email": current_user.email
     }
+
+
 @app.get("/terms")
 async def terms_page(request: Request):
     return templates.TemplateResponse(
@@ -85,8 +115,9 @@ async def privacy_page(request: Request):
     )
 
 @app.post("/register")
-def register(user_data:UserCreate,
-             db: Session = Depends(get_db)
+async def register(
+    user_data:UserCreate,
+    db: Session = Depends(get_db)
              ):
     if not user_data.terms_accepted:
         raise HTTPException(
@@ -105,24 +136,99 @@ def register(user_data:UserCreate,
         User.email == user_data.email
     ).first()
     if existing_email:
-        raise HTTPException(status_code=400,detail="Email already exists")
+        raise HTTPException(status_code=400,
+                            detail="Email already exists")
     
-    hashed_password = password_hasher.hash(user_data.password)
+    hashed_password = password_hasher.hash(
+        user_data.password
+        )
+    
+    verification_token, verification_token_hash = (
+        generate_verification_token()
+        )
+    print("PYTHON UTC NOW:", datetime.now(timezone.utc))
+    print("PYTHON LOCAL NOW:", datetime.now())
 
+    verification_expires = datetime.now(timezone.utc) + timedelta(minutes=30)
+    
     new_user = User(
-    username=user_data.username,
-    email=user_data.email,
-    hashed_password=hashed_password,
-    terms_accepted=True,
-    terms_version="1.0"
-)
+        username=user_data.username,
+        email=user_data.email,
+        hashed_password=hashed_password,
+        terms_accepted=True,
+        terms_version="1.0",
+        is_verified=False,
+        verification_token_hash=verification_token_hash,
+        verification_token_expires_at=verification_expires
+    )
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
+    verification_link = (
+    "http://127.0.0.1:8000/verify-email"
+    f"?token={verification_token}"
+)
+    print("VERIFICATION LINK:", verification_link)
+    await send_email(
+    to=new_user.email,
+    subject="Verify your Clout account",
+    html=f"""
+    <h1>Welcome to Clout! 👋</h1>
+
+    <p>Thanks for creating your account.</p>
+
+    <p>Click the button below to verify your email:</p>
+
+    <p>
+        <a href="{verification_link}">
+            Verify my email
+        </a>
+    </p>
+
+    <p>This link expires in 30 minutes.</p>
+    """
+)
+
+
     return{
         "message": "User registered successfully",
         "user_id": new_user.id,
         "username": new_user.username
+        }
+@app.get("/verify-email")
+def verify_email(
+    token: str,
+    db: Session = Depends(get_db)
+):
+    token_hash = hashlib.sha256(
+        token.encode()
+    ).hexdigest()
+
+    user = db.query(User).filter(
+        User.verification_token_hash == token_hash
+    ).first()
+
+    if not user:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid verification token"
+        )
+
+    if user.verification_token_expires_at < datetime.now(timezone.utc):
+        raise HTTPException(
+            status_code=400,
+            detail="Verification token has expired"
+        )
+
+    user.is_verified = True
+
+    user.verification_token_hash = None
+    user.verification_token_expires_at = None
+
+    db.commit()
+
+    return {
+        "message": "Email verified successfully! 🎉"
     }
 @app.post("/login")
 def login(
@@ -148,6 +254,11 @@ def login(
         raise HTTPException(
             status_code=401,
             detail="Invalid username or password"
+        )
+    if not user.is_verified:
+        raise HTTPException(
+            status_code=403,
+            detail="Please verify your email before logging in."
         )
 
     access_token = create_access_token(
@@ -328,11 +439,18 @@ async def home(request: Request):
     context={}
 )
 @app.get("/room/{room_id}")
-async def room(request: Request, room_id: int):
+async def room(
+    request: Request,
+    room_id: int,
+    db: Session = Depends(get_db)):
+    room = db.query(Room).filter(Room.id == room_id).first()
     return templates.TemplateResponse(
         request=request,
         name="room.html",
-        context={"room_id": room_id}
+        context={"room_id": room_id, 
+                 "room_name": room.name
+                 }
+        
     )
 
 
@@ -380,12 +498,14 @@ async def websocket_endpoint(
 
         
         history.append({
-        "id": message.id,
+        "message_id": message.id,
         "message": message.content,
         "user_id": message.user_id,
         "username": message_user.username if message_user else "Unknown",
         "created_at": message.created_at.isoformat()
     })
+
+
 
 
     
@@ -433,9 +553,11 @@ async def websocket_endpoint(
 
            data = {
                "type": "message",
+               "message_id": new_message.id,
                "user_id": user_id,
                "username": username,
                "message": message
+               
                }
            await manager.broadcast(
                json.dumps(data),
@@ -451,6 +573,81 @@ async def websocket_endpoint(
     }),
     room_id
 )
+
+@app.delete("/messages/{message_id}")
+async def delete_message(
+    message_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    message = db.query(Message).filter(
+        Message.id == message_id
+    ).first()
+
+    if not message:
+        raise HTTPException(
+            status_code=404,
+            detail="Message not found"
+        )
+
+    if message.user_id != current_user.id:
+        raise HTTPException(
+            status_code=403,
+            detail="You can only delete your own messages"
+        )
+
+    
+    room_id = message.room_id
+
+    db.delete(message)
+    db.commit()
+
+    # Tell everyone in the room
+    await manager.broadcast(
+        json.dumps({
+            "type": "message_deleted",
+            "message_id": message_id
+        }),
+        room_id
+    )
+
+    return {
+        "message": "Message deleted",
+        "message_id": message_id
+    }
+
+@app.put("/rooms/{room_id}/messages/{message_id}")
+def update_message(room_id : int,
+                   message_id:int,
+                   message: MessageUpdate,
+                   db: Session = Depends(get_db),
+                   current_user : User = Depends(get_current_user)
+                   ):
+    
+    editable_message = db.query(Message).filter(
+        Message.id == message_id,
+        Message.room_id == room_id
+        ).first()
+    
+
+    if editable_message is None:
+            raise HTTPException(status_code=404,
+                                detail="message doesn't exist"
+                                )
+    if editable_message.user_id != current_user.id:
+        raise HTTPException(
+            status_code=403,
+            detail="Message doesn't exist"
+        )
+
+    
+    
+    editable_message.content= message.content
+    db.commit()
+    db.refresh(editable_message)
+
+    return editable_message
+
 
 
 
