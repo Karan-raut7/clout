@@ -1,4 +1,3 @@
-console.log("LOGIN JS LOADED");
 const loginForm = document.querySelector("#loginForm");
 const errorMessage = document.querySelector("#errorMessage");
 

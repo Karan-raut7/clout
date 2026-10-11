@@ -1,3 +1,4 @@
+
 const errorMessage = document.querySelector("#errorMessage");
 const registerForm = document.querySelector("#registerForm");
 
@@ -29,13 +30,18 @@ registerForm.addEventListener("submit", async function (event) {
     const result = await response.json();
 
     if (response.ok) {
-        alert("Account created successfully!");
+    alert("Account created successfully!");
 
-        window.location.href = "/login-page";
-    } else {
-        errorMessage.textContent = result.detail;
-    }
+    console.log("Before redirect:", window.location.href);
+
+    window.location.href = "/login-page";
+
+      
+} else {
+    errorMessage.textContent = result.detail;
+}
 
     console.log(response);
+
 });
 

@@ -1,7 +1,14 @@
-from sqlalchemy import Boolean, Column, Integer, String
-from database import Base
-from sqlalchemy import Column, Integer, String, ForeignKey, DateTime
+from sqlalchemy import (
+    Boolean,
+    Column,
+    ForeignKey,
+    DateTime,
+    Integer,
+    String,
+)
 from sqlalchemy.sql import func
+
+from database import Base
 
 class User(Base):
     __tablename__ = "users"
@@ -18,18 +25,6 @@ class User(Base):
         server_default=func.now()
     )
 
-    # Email verification
-    is_verified = Column(Boolean, nullable=False, default=False)
-    
-    verification_token_hash = Column(
-    String,
-    nullable=True
-)
-    verification_token_expires_at = Column(
-    DateTime(timezone=True),
-    nullable=True
-)
-
 
 class Room(Base):
     __tablename__ = "rooms"
@@ -45,10 +40,15 @@ class Message(Base):
     content = Column(String, nullable=False)
 
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    room_id = Column(
-    Integer,
-    ForeignKey("rooms.id", ondelete="CASCADE"),
-    nullable=False
-)
 
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    room_id = Column(
+        Integer,
+        ForeignKey("rooms.id", ondelete="CASCADE"),
+        nullable=False
+    )
+
+    created_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now()
+    )
+

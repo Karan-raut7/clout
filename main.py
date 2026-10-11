@@ -15,21 +15,23 @@ from fastapi.security import OAuth2PasswordRequestForm
 from database import engine
 from models import Base
 from dotenv import load_dotenv
-from datetime import datetime, timedelta, timezone
 
-from services.email import send_email
-from services.tokens import generate_verification_token
 
-import hashlib
+
+
+
+
+from fastapi import Form
 load_dotenv()
 
 
 
 Base.metadata.create_all(bind=engine)
-ph = PasswordHasher()
+
 app = FastAPI()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 password_hasher = PasswordHasher()
+
 class RoomCreate(BaseModel):
     name: str
 
@@ -42,6 +44,9 @@ class UserCreate(BaseModel):
 class MessageUpdate(BaseModel):
     content: str = Field(..., min_length=1, max_length=500)
 
+class EmailRequest(BaseModel):
+    email: str
+
 
 class UserLogin(BaseModel):
     username: str
@@ -51,6 +56,7 @@ class RegisterRequest(BaseModel):
     username: str
     email: str
     password: str
+
 
 
 def get_current_user(
@@ -78,12 +84,7 @@ def get_current_user(
             status_code=404,
             detail="User not found"
         )
-    # Email must be verified
-    if not user.is_verified:
-        raise HTTPException(
-            status_code=403,
-            detail="Please verify your email first."
-        )
+    
 
     return user
 
@@ -143,13 +144,9 @@ async def register(
         user_data.password
         )
     
-    verification_token, verification_token_hash = (
-        generate_verification_token()
-        )
-    print("PYTHON UTC NOW:", datetime.now(timezone.utc))
-    print("PYTHON LOCAL NOW:", datetime.now())
+    
 
-    verification_expires = datetime.now(timezone.utc) + timedelta(minutes=30)
+    
     
     new_user = User(
         username=user_data.username,
@@ -157,79 +154,26 @@ async def register(
         hashed_password=hashed_password,
         terms_accepted=True,
         terms_version="1.0",
-        is_verified=False,
-        verification_token_hash=verification_token_hash,
-        verification_token_expires_at=verification_expires
+        
+        
     )
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
-    verification_link = (
-    "http://127.0.0.1:8000/verify-email"
-    f"?token={verification_token}"
-)
-    print("VERIFICATION LINK:", verification_link)
-    await send_email(
-    to=new_user.email,
-    subject="Verify your Clout account",
-    html=f"""
-    <h1>Welcome to Clout! 👋</h1>
-
-    <p>Thanks for creating your account.</p>
-
-    <p>Click the button below to verify your email:</p>
-
-    <p>
-        <a href="{verification_link}">
-            Verify my email
-        </a>
-    </p>
-
-    <p>This link expires in 30 minutes.</p>
-    """
-)
-
+    
 
     return{
         "message": "User registered successfully",
         "user_id": new_user.id,
         "username": new_user.username
         }
-@app.get("/verify-email")
-def verify_email(
-    token: str,
-    db: Session = Depends(get_db)
-):
-    token_hash = hashlib.sha256(
-        token.encode()
-    ).hexdigest()
 
-    user = db.query(User).filter(
-        User.verification_token_hash == token_hash
-    ).first()
 
-    if not user:
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid verification token"
-        )
 
-    if user.verification_token_expires_at < datetime.now(timezone.utc):
-        raise HTTPException(
-            status_code=400,
-            detail="Verification token has expired"
-        )
+        
+    
+    
 
-    user.is_verified = True
-
-    user.verification_token_hash = None
-    user.verification_token_expires_at = None
-
-    db.commit()
-
-    return {
-        "message": "Email verified successfully! 🎉"
-    }
 @app.post("/login")
 def login(
     user_data: OAuth2PasswordRequestForm = Depends(),
@@ -255,11 +199,7 @@ def login(
             status_code=401,
             detail="Invalid username or password"
         )
-    if not user.is_verified:
-        raise HTTPException(
-            status_code=403,
-            detail="Please verify your email before logging in."
-        )
+    
 
     access_token = create_access_token(
     data={"sub": str(user.id)}
@@ -602,7 +542,7 @@ async def delete_message(
     db.delete(message)
     db.commit()
 
-    # Tell everyone in the room
+    
     await manager.broadcast(
         json.dumps({
             "type": "message_deleted",
@@ -679,3 +619,17 @@ async def delete_room(
     return {
         "message": "Room deleted"
     }
+
+
+
+
+    
+
+
+@app.get("/forgot-password-page")
+def forgot_password_page(request: Request):
+    return templates.TemplateResponse(
+        request,
+        "forgot_password.html",
+        {}
+    )

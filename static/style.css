@@ -1127,3 +1127,219 @@ body {
     background: rgba(255, 80, 80, 0.12);
     color: #ff5555;
 }
+
+/* ================================
+   Clout - Reset Password Page
+================================ */
+
+.reset-password-page {
+    min-height: 100vh;
+    margin: 0;
+    padding: 24px;
+    box-sizing: border-box;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    background: #000;
+    color: #fff;
+    font-family: Arial, sans-serif;
+}
+
+.reset-password-container {
+    width: 100%;
+    max-width: 420px;
+    margin: auto;
+}
+
+.reset-brand {
+    margin: 0 0 28px;
+    text-align: center;
+
+    font-size: 36px;
+    font-weight: 800;
+    letter-spacing: -1.5px;
+}
+
+.reset-brand::after {
+    content: ".";
+    color: #888;
+}
+
+.reset-password-card {
+    padding: 36px;
+
+    background: #0b0b0b;
+    border: 1px solid #222;
+    border-radius: 16px;
+}
+
+.reset-icon {
+    width: 52px;
+    height: 52px;
+    margin-bottom: 22px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    background: #171717;
+    border: 1px solid #292929;
+    border-radius: 14px;
+
+    font-size: 24px;
+}
+
+.reset-password-card h2 {
+    margin: 0 0 12px;
+
+    font-size: 25px;
+    font-weight: 700;
+    letter-spacing: -0.6px;
+}
+
+.reset-description {
+    margin: 0 0 28px;
+
+    color: #999;
+    font-size: 14px;
+    line-height: 1.6;
+}
+
+.reset-password-form {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.reset-form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+}
+
+.reset-form-group label {
+    color: #e5e5e5;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.reset-form-group input {
+    width: 100%;
+    padding: 14px;
+
+    box-sizing: border-box;
+
+    background: #111;
+    border: 1px solid #333;
+    border-radius: 10px;
+
+    color: #fff;
+    font-size: 14px;
+
+    outline: none;
+    transition: border-color 0.2s, background 0.2s;
+}
+
+.reset-form-group input::placeholder {
+    color: #666;
+}
+
+.reset-form-group input:focus {
+    border-color: #888;
+    background: #141414;
+}
+
+.reset-submit-btn {
+    width: 100%;
+    margin-top: 4px;
+    padding: 14px;
+
+    background: #fff;
+    border: none;
+    border-radius: 10px;
+
+    color: #000;
+    font-size: 14px;
+    font-weight: 700;
+
+    cursor: pointer;
+    transition: background 0.2s, transform 0.2s;
+}
+
+.reset-submit-btn:hover {
+    background: #dedede;
+}
+
+.reset-submit-btn:active {
+    transform: scale(0.98);
+}
+
+.reset-footer {
+    margin: 26px 0 0;
+
+    color: #888;
+    font-size: 13px;
+    text-align: center;
+    line-height: 1.7;
+}
+
+.reset-footer a {
+    margin-left: 4px;
+
+    color: #fff;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.reset-footer a:hover {
+    text-decoration: underline;
+}
+
+.reset-security-note {
+    margin: 22px 0 0;
+
+    color: #666;
+    font-size: 12px;
+    text-align: center;
+}
+
+/* Mobile responsive */
+
+@media (max-width: 480px) {
+    .reset-password-page {
+        padding: 18px;
+    }
+
+    .reset-brand {
+        margin-bottom: 22px;
+        font-size: 32px;
+    }
+
+    .reset-password-card {
+        padding: 26px 22px;
+        border-radius: 14px;
+    }
+
+    .reset-password-card h2 {
+        font-size: 23px;
+    }
+}
+.forgot-password-link {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 10px;
+}
+
+.forgot-password-link a {
+    color: #999;
+    font-size: 12px;
+    text-decoration: none;
+    transition: color 0.2s ease;
+}
+
+.forgot-password-link a:hover {
+    color: #fff;
+    text-decoration: underline;
+}
