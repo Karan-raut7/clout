@@ -280,9 +280,9 @@ document.getElementById("messages").addEventListener("contextmenu", function (ev
 });
 
 const editButton = document.getElementById("editMessage");
+const deleteButton = document.getElementById("deleteMessage");
 
 editButton.addEventListener("click", function () {
-
     if (!selectedMessage) {
         return;
     }
@@ -292,7 +292,6 @@ editButton.addEventListener("click", function () {
     const oldText = selectedMessage.dataset.content;
 
     input.value = oldText;
-
     input.focus();
 
     messageMenu.style.display = "none";
@@ -301,59 +300,42 @@ editButton.addEventListener("click", function () {
         id: selectedMessage.dataset.messageId,
         content: oldText
     });
-
-const deleteButton = document.getElementById("deleteMessage");
-
-
-console.log("DELETE BUTTON:", deleteButton);
-
-deleteButton.addEventListener("click", function () {
-    console.log("🔥 DELETE BUTTON CLICKED");
 });
 
 deleteButton.addEventListener("click", async function () {
+    console.log("🔥 DELETE BUTTON CLICKED");
 
     if (!selectedMessage) {
         console.log("No selected message");
         return;
     }
 
-    const messageId = Number(
-        selectedMessage.dataset.messageId
-    );
+    const messageId = Number(selectedMessage.dataset.messageId);
 
     console.log("Deleting message:", messageId);
     console.log("Token exists:", !!token);
 
     try {
-
-        const response = await fetch(
-            `/messages/${messageId}`,
-            {
-                method: "DELETE",
-                headers: {
-                    "Authorization": `Bearer ${token}`
-                }
+        const response = await fetch(`/messages/${messageId}`, {
+            method: "DELETE",
+            headers: {
+                "Authorization": `Bearer ${token}`
             }
-        );
+        });
 
         console.log("DELETE status:", response.status);
 
-        const data = await response.json();
-
-        console.log("DELETE response:", data);
-
         if (!response.ok) {
-            console.error("Delete failed:", data);
+            const errorText = await response.text();
+            console.error("Delete failed:", response.status, errorText);
             return;
         }
 
         messageMenu.style.display = "none";
 
+        console.log("Message deletion request succeeded.");
+
     } catch (error) {
-
         console.error("DELETE request error:", error);
-
     }
-});
 });
