@@ -1,67 +1,59 @@
 # 🗣️ Clout
 
-> A real-time chat application built with FastAPI, WebSockets & PostgreSQL.
+> A real-time chat application built with FastAPI, WebSockets, and PostgreSQL.
 
-## 🚀 What is Clout?
+Clout is a real-time chat application where users can create rooms, join conversations, and exchange messages instantly.
 
-Clout is a real-time chat app where users can create rooms,
-join conversations, and send messages instantly.
-
-Built from scratch to learn and implement real-world backend concepts.
+Built from scratch to explore backend development, authentication, database management, and real-time communication.
 
 ## ✨ Features
 
-- 🔐 User authentication
-- 🔑 JWT authentication
+- 🔐 User registration and authentication
+- 🔑 JWT-based authentication
 - 🔒 Argon2 password hashing
-- 💬 Real-time messaging
-- 🏠 Chat rooms
-- 🗑️ Room deletion
+- 💬 Real-time messaging with WebSockets
+- 🏠 Create and manage chat rooms
+- 🗑️ Delete chat rooms
+- ✏️ Edit your own messages
+- ❌ Delete your own messages
 - 💾 PostgreSQL message persistence
-- 📜 Terms & Privacy acceptance
-- ⚡ WebSocket communication
-- 📱 Responsive interface
+- 📜 Terms and Privacy acceptance
+- 📱 Responsive user interface
 
-## 🛠️ Built With
+## 🛠️ Tech Stack
 
-**Backend**
+### Backend
 - Python
 - FastAPI
 - SQLAlchemy
 - PostgreSQL
 - WebSockets
+- JWT
+- Argon2
 
-**Frontend**
+### Frontend
 - HTML
 - CSS
 - JavaScript
 - Jinja2
 
-## 🧠 What I Learned
+### Tools and Deployment
+- Git and GitHub
+- Render
+- Uvicorn
 
-Building Clout helped me understand:
+## 🚀 Getting Started
 
-- REST APIs
-- Authentication & JWT
-- Password hashing
-- SQLAlchemy & PostgreSQL
-- WebSockets
-- Real-time communication
-- Environment variables
-- Git & GitHub
-- Deployment preparation
+### Prerequisites
 
-## 🚧 Coming Soon
+Make sure you have installed:
 
-- 💬 Private DMs
-- ✏️ Edit messages
-- 🗑️ Delete messages
-- 👤 Profile pictures
-- 📹 WebRTC
-- 🚀 More social features
+- Python 3.10 or later
+- PostgreSQL
+- Git
 
-## 👨‍💻 Built by
+### 1. Clone the repository
 
-**Karan Raut**
-
-> Built from scratch. One feature at a time. 🔥
+```bash
+git clone https://github.com/Karan-raut7/clout.git
+cd clout
