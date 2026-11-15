@@ -7,44 +7,75 @@
 
 <title>Clout</title>
 
-<link rel="stylesheet" href="/static/style.css">
+<link rel="stylesheet" href="/static/style.css?v=2">
 
 
 </head>
 
 <body>
     
-
 <div class="box">
-    
 
     <h1>Clout</h1>
 
-    <h2>Create a room</h2>
+    <!-- Navigation -->
+    <div class="chat-tabs">
+        <button class="tab active" data-tab="private">
+            Private Chats
+        </button>
 
-    <input
-        id="roomName"
-        type="text"
-        placeholder="Enter room name..."
-    >
+        <button class="tab" data-tab="groups">
+            Groups
+        </button>
+    </div>
 
-    <button id="createRoomButton">
-        Create
-    </button>
+    <!-- PRIVATE CHAT SECTION -->
+    <section id="private-section" class="tab-content active">
 
-    <h2>Available rooms</h2>
+        <h2>Direct Messages</h2>
 
-    <ul id="roomList"></ul>
-    <p id="errorMessage"></p>
-    
+        <ul id="dmList"></ul>
+
+        <h2>Start a conversation</h2>
+
+        <ul id="userList"></ul>
+
+    </section>
+
+
+    <!-- GROUP SECTION -->
+    <section id="groups-section" class="tab-content">
+
+        <h2>Create a group</h2>
+
+        <div class="create-group">
+            <input
+                id="roomName"
+                type="text"
+                placeholder="Enter group name..."
+            >
+
+            <button id="createRoomButton">
+                Create
+            </button>
+        </div>
+
+        <h2>Available Groups</h2>
+
+        <ul id="roomList"></ul>
+
+        <p id="errorMessage"></p>
+
+    </section>
+
+
     <div class="logout-container">
-        
         <button id="logout">Log out</button>
     </div>
 
 </div>
 
-<script src="/static/script.js"></script>
+<script type="module" src="/static/home.js?v=3"></script>
 
 
 </body>

@@ -13,8 +13,12 @@ from security import create_access_token,verify_access_token
 from fastapi.security import OAuth2PasswordBearer
 from fastapi.security import OAuth2PasswordRequestForm
 from database import engine
-from models import Base
+from models import Base,Room,User,Message,RoomMember
 from dotenv import load_dotenv
+from sqlalchemy import select
+import secrets,hashlib
+import datetime as dt
+from fastapi import Cookie,Response
 
 
 
@@ -29,6 +33,17 @@ load_dotenv()
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
+
+def hash_token(raw: str) -> str:
+    return hashlib.sha256(raw.encode()).hexdigest()
+
+
+def is_room_member(db: Session, room_id: int, user_id: int) -> bool:
+    return db.query(RoomMember).filter(
+        RoomMember.room_id == room_id,
+        RoomMember.user_id == user_id
+    ).first() is not None
+
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 password_hasher = PasswordHasher()
 
@@ -202,8 +217,9 @@ def login(
     
 
     access_token = create_access_token(
-    data={"sub": str(user.id)}
-)
+    data={"sub": str(user.id)})
+    
+
 
     return {
     "access_token": access_token,
@@ -218,7 +234,10 @@ def test_db(db: Session = Depends(get_db)):
 
 
 
-app.mount("/static", StaticFiles(directory="static"), name="static")
+from pathlib import Path
+
+BASE_DIR = Path(__file__).resolve().parent
+app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 
 templates = Jinja2Templates(directory="templates")
 
@@ -359,7 +378,7 @@ async def create_room(
 async def get_rooms(
     db: Session = Depends(get_db)
 ):
-    rooms = db.query(Room).all()
+    rooms = db.query(Room).filter(Room.is_direct.is_(False)).all()
 
     return [
         {
@@ -415,6 +434,16 @@ async def websocket_endpoint(
         ).first()
 
     if user is None:
+        await websocket.close(code=1008)
+        return
+
+    room = db.query(Room).filter(Room.id == room_id).first()
+
+    if room is None:
+        await websocket.close(code=1008)
+        return
+
+    if room.is_direct and not is_room_member(db, room_id, user.id):
         await websocket.close(code=1008)
         return
 
@@ -594,17 +623,17 @@ def update_message(room_id : int,
 @app.delete("/rooms/{room_id}")
 async def delete_room(
     room_id: int,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    room = db.query(Room).filter(
-        Room.id == room_id
-    ).first()
+    room = db.query(Room).filter(Room.id == room_id).first()
 
     if room is None:
-        raise HTTPException(
-            status_code=404,
-            detail="Room not found"
-        )
+        raise HTTPException(status_code=404, detail="Room not found")
+
+    # Private chats can't be deleted, so one person can't wipe out a conversation for both
+    if room.is_direct:
+        raise HTTPException(status_code=403, detail="Direct chats can't be deleted")
 
     db.delete(room)
     db.commit()
@@ -616,9 +645,7 @@ async def delete_room(
         })
     )
 
-    return {
-        "message": "Room deleted"
-    }
+    return {"message": "Room deleted"}
 
 
 
@@ -633,3 +660,78 @@ def forgot_password_page(request: Request):
         "forgot_password.html",
         {}
     )
+
+@app.get("/users")
+def list_users(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    users = db.query(User).filter(User.id != current_user.id).all()
+    return [{"id": u.id, "username": u.username} for u in users]
+
+
+@app.post("/dms/{other_user_id}")
+def open_direct_message(
+    other_user_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    if other_user_id == current_user.id:
+        raise HTTPException(status_code=400, detail="You can't DM yourself")
+
+    other = db.query(User).filter(User.id == other_user_id).first()
+    if other is None:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Reuse an existing DM between these two users
+    existing = (
+        db.query(Room)
+        .join(RoomMember, RoomMember.room_id == Room.id)
+        .filter(
+            Room.is_direct.is_(True),
+            RoomMember.user_id == other_user_id,
+            Room.id.in_(
+                select(RoomMember.room_id).where(RoomMember.user_id == current_user.id)
+            )
+        )
+        .first()
+    )
+    if existing:
+        return {"room_id": existing.id}
+
+    dm = Room(name=None, is_direct=True)
+    db.add(dm)
+    db.flush()  # gets dm.id without committing yet
+
+    db.add_all([
+        RoomMember(room_id=dm.id, user_id=current_user.id),
+        RoomMember(room_id=dm.id, user_id=other_user_id),
+    ])
+    db.commit()
+
+    # Deliberately no room_list_manager.broadcast() here: DMs stay off the public list
+    return {"room_id": dm.id}
+
+
+@app.get("/dms")
+def my_direct_messages(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    rows = (
+        db.query(Room.id, User.username)
+        .join(RoomMember, RoomMember.room_id == Room.id)
+        .join(User, User.id == RoomMember.user_id)
+        .filter(
+            Room.is_direct.is_(True),
+            RoomMember.user_id != current_user.id,
+            Room.id.in_(
+                select(RoomMember.room_id).where(RoomMember.user_id == current_user.id)
+            )
+        )
+        .all()
+    )
+    return [{"room_id": r.id, "username": r.username} for r in rows]
+
+
+

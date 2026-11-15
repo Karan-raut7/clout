@@ -1,204 +1,36 @@
-const token = localStorage.getItem("access_token");
+import { setAccessToken } from "./api.js";
 
-if (!token) {
-    window.location.href = "/login-page";
-}
-
-
-const roomNameInput = document.querySelector("#roomName");
-const createRoomButton = document.querySelector("#createRoomButton");
-const roomList = document.querySelector("#roomList");
+const loginForm = document.querySelector("#loginForm");
 const errorMessage = document.querySelector("#errorMessage");
-const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
 
-const socket = new WebSocket(
-    `${protocol}//${window.location.host}/ws/rooms`
-);
+loginForm.addEventListener("submit", async function (event) {
+    event.preventDefault();
 
-socket.onmessage = function (event) {
-    const data = JSON.parse(event.data);
+    const username = document.querySelector("#username").value;
+    const password = document.querySelector("#password").value;
 
-    console.log("WebSocket message:", data);
+    const formData = new URLSearchParams();
+    formData.append("username", username);
+    formData.append("password", password);
 
-    if (data.type === "room_created") {
-        addRoom(data.room);
-    }
-    if (data.type === "room_deleted") {
-        const roomElement = document.querySelector(`[data-room-id="${data.room_id}"]`);
-        if (roomElement) {
-            roomElement.remove();
-        }
-    }
-};
-// =========================
-// Load Rooms
-// =========================
-
-function addRoom(room) {
-    const li = document.createElement("li");
-    li.dataset.roomId = room.id;
-
-    li.textContent = room.name + " ";
-
-    const joinButton = document.createElement("button");
-    joinButton.textContent = "Join";
-    
-
-
-
-    joinButton.addEventListener("click", function () {
-        window.location.href = "/room/" + room.id;
-    });
-
-    li.appendChild(joinButton);
-    
-    
-    const deleteBtn = document.createElement("button");
-deleteBtn.textContent = "delete";
-
-deleteBtn.addEventListener("click", async () => {
-    const response = await fetch(`/rooms/${room.id}`, {
-        method: "DELETE"
-    });
-
-    if (response.ok) {
-        li.remove();
-    }
-});
-    
-    li.appendChild(deleteBtn);
-    roomList.appendChild(li);
-
-    
-
-    
-}
-async function loadRooms() {
-    
     try {
-        roomList.textContent = "Loading rooms...";
-        errorMessage.textContent = "";
-
-        const response = await fetch("/rooms");
-
-        
-
-        if (!response.ok) {
-            const data = await response.json();
-            console.log("STATUS:", response.status);
-            console.log("ERROR:", data.detail);
-
-            errorMessage.textContent = data.detail;
-
-            return;
-        }
-        const rooms = await response.json();
-        roomList.innerHTML = "";
-        if (rooms.length === 0) {
-            const li = document.createElement("li");
-            li.textContent = "No rooms available right now.";
-            roomList.appendChild(li);
-}
-        
-        else {
-            rooms.forEach(function (room) {
-            const li = document.createElement("li");
-            li.dataset.roomId = room.id;
-            
-
-            li.textContent = room.name + " ";
-
-            const joinButton = document.createElement("button");
-            
-            joinButton.textContent = "Join";
-            const deleteBtn = document.createElement("button");
-            deleteBtn.textContent = "delete";
-            deleteBtn.addEventListener("click", async () => {
-    const response = await fetch(`/rooms/${room.id}`, {
-        method: "DELETE"
-    });
-
-    if (response.ok) {
-        li.remove();
-    }
-
-    
-});
-li.appendChild(deleteBtn);
-            joinButton.addEventListener("click", function () {
-                window.location.href = "/room/" + room.id;
-
-            
-                
-                
-
-});
-
-li.appendChild(joinButton);
-li.appendChild(deleteBtn);
-roomList.appendChild(li);
-
-});
-}
-
-    } catch (error) {
-        console.error(error);
-        errorMessage.textContent = "Unable to connect to Clout. Please try again.";
-
-    }
-}
-
-// =========================
-// Create Room
-// =========================
-
-
-
-async function createRoom() {
-    try {
-        const name = roomNameInput.value.trim();
-
-        if (!name) {
-            return;
-        }
-
-        const response = await fetch("/rooms", {
+        const response = await fetch("/login", {
             method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-                name: name
-            })
+            credentials: "include", // lets the browser save the refresh cookie
+            body: formData,
         });
-        roomNameInput.value = " "
 
         const data = await response.json();
 
-        console.log(data);
+        if (!response.ok) {
+            errorMessage.textContent = data.detail || "Login failed";
+            return;
+        }
 
+        setAccessToken(data.access_token);
+        window.location.href = "/";
     } catch (error) {
-        console.error(error);
-    }
-}
-    const logoutButton = document.getElementById("logout");
-logoutButton.addEventListener("click", () => {
-    localStorage.removeItem("access_token");
-    window.location.href = "/login-page";
-});
-    
-
-    
-createRoomButton.addEventListener("click", createRoom); 
-roomNameInput.addEventListener("keydown", function (event) {
-    if (event.key === "Enter") {
-        event.preventDefault();
-        createRoom();
-        
-
+        console.error("Login error:", error);
+        errorMessage.textContent = "Something went wrong";
     }
 });
-
-
-loadRooms();
-

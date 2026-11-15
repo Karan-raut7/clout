@@ -3,3 +3,7 @@ __pycache__/
 *.pyc
 .venv/
 venv/
+
+clout_backup_before_dms.sql
+*.db
+*.sql
