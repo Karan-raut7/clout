@@ -13,7 +13,7 @@ SECRET_KEY = os.environ["SECRET_KEY"]
 ALGORITHM = "HS256"
 
 
-def create_access_token(data: dict, expires_minutes: int = 1):
+def create_access_token(data: dict, expires_minutes: int = 30):
     to_encode = data.copy()
 
     expire = datetime.now(timezone.utc) + timedelta(
