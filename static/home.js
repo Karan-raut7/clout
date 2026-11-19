@@ -1,7 +1,110 @@
-const token = localStorage.getItem("access_token");
+
+let token = localStorage.getItem("access_token");
+let refreshPromise = null;
 
 if (!token) {
     window.location.href = "/login-page";
+}
+async function refreshAccessToken() {
+
+    if (!refreshPromise) {
+
+        refreshPromise = fetch("/auth/refresh", {
+            method: "POST",
+            credentials: "same-origin"
+        })
+        .then(async response => {
+
+            if (!response.ok) {
+                throw new Error("Refresh failed");
+            }
+
+            const data = await response.json();
+
+            token = data.access_token;
+
+            localStorage.setItem("access_token", token);
+
+            return token;
+        })
+        .catch(error => {
+
+            localStorage.removeItem("access_token");
+            window.location.href = "/login-page";
+
+            throw error;
+        })
+        .finally(() => {
+
+            refreshPromise = null;
+
+        });
+    }
+
+    return refreshPromise;
+}
+
+
+async function apiFetch(url, options = {}) {
+
+    const makeRequest = () => {
+
+        const headers = new Headers(options.headers || {});
+
+        if (token) {
+            headers.set("Authorization", `Bearer ${token}`);
+        }
+
+        return fetch(url, {
+            ...options,
+            headers,
+            credentials: "same-origin"
+        });
+    };
+
+    let response = await makeRequest();
+
+    if (response.status !== 401) {
+        return response;
+    }
+
+    // Wait for the shared refresh operation.
+    await refreshAccessToken();
+
+    // Retry using the updated access token.
+    return makeRequest();
+
+console.log("Access token rejected. Attempting refresh...");
+    // Access token expired. Request a new one.
+    const refreshResponse = await fetch("/auth/refresh", {
+        method: "POST",
+        credentials: "same-origin"
+    });
+
+    // Refresh failed
+    if (!refreshResponse.ok) {
+        localStorage.removeItem("access_token");
+        window.location.href = "/login-page";
+        throw new Error("Session expired");
+    }
+
+    // Save new access token
+    const refreshData = await refreshResponse.json();
+
+    token = refreshData.access_token;
+
+    localStorage.setItem("access_token", token);
+
+    // Retry original request
+    const retryHeaders = new Headers(options.headers || {});
+
+    retryHeaders.set("Authorization", `Bearer ${token}`);
+
+    return fetch(url, {
+        ...options,
+        headers: retryHeaders,
+        credentials: "same-origin"
+    });
 }
 
 const roomNameInput = document.querySelector("#roomName");
@@ -12,11 +115,24 @@ const userList = document.querySelector("#userList");
 const errorMessage = document.querySelector("#errorMessage");
 
 function authHeaders(extra = {}) {
-    return { ...extra, Authorization: `Bearer ${token}` };
+    return {
+        ...extra,
+        Authorization: `Bearer ${token}`
+    };
 }
 
 //  Logout 
-document.querySelector("#logout").addEventListener("click", () => {
+// Logout
+document.querySelector("#logout").addEventListener("click", async () => {
+    try {
+        await fetch("/auth/logout", {
+            method: "POST",
+            credentials: "same-origin"
+        });
+    } catch (error) {
+        console.error("Logout error:", error);
+    }
+
     localStorage.removeItem("access_token");
     window.location.href = "/login-page";
 });
@@ -52,7 +168,7 @@ function buildRoomItem(room) {
     const deleteBtn = document.createElement("button");
     deleteBtn.textContent = "delete";
     deleteBtn.addEventListener("click", async () => {
-        const res = await fetch(`/rooms/${room.id}`, {
+        const res = await apiFetch(`/rooms/${room.id}`, {
             method: "DELETE",
             headers: authHeaders(),
         });
@@ -68,7 +184,7 @@ function addRoom(room) {
 }
 
 async function loadRooms() {
-    const res = await fetch("/rooms", { headers: authHeaders() });
+    const res = await apiFetch("/rooms", { headers: authHeaders() });
     if (!res.ok) return;
 
     const rooms = await res.json();
@@ -91,7 +207,7 @@ async function createRoom() {
         return;
     }
 
-    const res = await fetch("/rooms", {
+    const res = await apiFetch("/rooms", {
         method: "POST",
         headers: authHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({ name }),
@@ -133,7 +249,7 @@ socket.onmessage = (event) => {
 
 //  Direct messages and users 
 async function loadDirectMessages() {
-    const res = await fetch("/dms", { headers: authHeaders() });
+    const res = await apiFetch("/dms", { headers: authHeaders() });
     if (!res.ok) return;
 
     const dms = await res.json();
@@ -151,7 +267,7 @@ async function loadDirectMessages() {
         const openBtn = document.createElement("button");
         openBtn.textContent = "Open";
         openBtn.addEventListener("click", () => {
-            window.location.href = "/room/" + dm.room_id;
+            window.location.href = "/dm/" + dm.thread_id;
         });
 
         li.appendChild(openBtn);
@@ -160,7 +276,7 @@ async function loadDirectMessages() {
 }
 
 async function loadUsers() {
-    const res = await fetch("/users", { headers: authHeaders() });
+    const res = await apiFetch("/users", { headers: authHeaders() });
     if (!res.ok) return;
 
     const users = await res.json();
@@ -173,7 +289,7 @@ async function loadUsers() {
         const chatBtn = document.createElement("button");
         chatBtn.textContent = "Message";
         chatBtn.addEventListener("click", async () => {
-            const res = await fetch(`/dms/${user.id}`, {
+            const res = await apiFetch(`/dms/${user.id}`, {
                 method: "POST",
                 headers: authHeaders(),
             });
@@ -182,7 +298,7 @@ async function loadUsers() {
                 return;
             }
             const data = await res.json();
-            window.location.href = "/room/" + data.room_id;
+            window.location.href = "/dm/" + data.thread_id;
         });
 
         li.appendChild(chatBtn);

@@ -14,7 +14,8 @@
 <body>
     
 
-    <div class="chat-container">
+    <div class="chat-container"
+     data-is-dm="{{ 'true' if is_dm else 'false' }}">
 
         <!-- Header -->
         <header class="chat-header">
@@ -25,7 +26,7 @@
                 <div>
                     
                     <h1 id="room-name">{{room_name }}</h1>
-                    <p>🟢 Room {{ room_id }}</p>
+                    {% if not is_dm %}<p>🟢 Room {{ room_id }}</p>{% endif %}
                     
                 </div>
             </div>
@@ -71,6 +72,7 @@
     <button id="editMessage">✏ Edit</button>
     <button id="deleteMessage">🗑 Delete</button>
 </div>
+
 
         <script src="/static/room.js?v=5"></script>
         

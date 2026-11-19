@@ -10,7 +10,7 @@ from sqlalchemy.sql import func
 
 import secrets,hashlib
 import datetime as dt
-
+from sqlalchemy import UniqueConstraint,CheckConstraint
 
 from database import Base
 
@@ -78,13 +78,77 @@ class Message(Base):
         server_default=func.now()
     )
 
-REFRESH_TTL = dt.timedelta(days=7)
+
+
+
+
+from sqlalchemy import UniqueConstraint, CheckConstraint
+
+class DMThread(Base):
+    __tablename__ = "dm_threads"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_a_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    user_b_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("user_a_id", "user_b_id", name="uq_dm_pair"),
+        CheckConstraint("user_a_id < user_b_id", name="ck_dm_order"),
+    )
+
+
+class DMMessage(Base):
+    __tablename__ = "dm_messages"
+
+    id = Column(Integer, primary_key=True, index=True)
+    thread_id = Column(Integer, ForeignKey("dm_threads.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    content = Column(String, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
 
 class RefreshToken(Base):
     __tablename__ = "refresh_tokens"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
-    token_hash = Column(String, unique=True, nullable=False, index=True)
-    expires_at = Column(DateTime(timezone=True), nullable=False)
-    revoked = Column(Boolean, default=False, nullable=False)
+
+    user_id = Column(
+        Integer,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True
+    )
+
+    token_hash = Column(
+        String(64),
+        unique=True,
+        nullable=False,
+        index=True
+    )
+
+    family_id = Column(
+        String(36),
+        nullable=False,
+        index=True
+    )
+
+    expires_at = Column(
+        DateTime(timezone=True),
+        nullable=False
+    )
+
+    revoked_at = Column(
+        DateTime(timezone=True),
+        nullable=True
+    )
+
+    replaced_by_token_hash = Column(
+        String(64),
+        nullable=True
+    )
+
+    created_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False
+    )

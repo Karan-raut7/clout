@@ -1,7 +1,77 @@
-const token = localStorage.getItem("access_token");
+const chatContainer = document.querySelector(".chat-container");
+
+const isDM = chatContainer.dataset.isDm === "true";
+
+let token = localStorage.getItem("access_token");
+let ws = null;
+let refreshPromise = null;
+
 
 if (!token) {
     window.location.href = "/login-page";
+}
+
+async function refreshAccessToken() {
+
+    if (!refreshPromise) {
+
+        refreshPromise = fetch("/auth/refresh", {
+            method: "POST",
+            credentials: "same-origin"
+        })
+        .then(async response => {
+
+            if (!response.ok) {
+                throw new Error("Refresh failed");
+            }
+
+            const data = await response.json();
+
+            token = data.access_token;
+            localStorage.setItem("access_token", token);
+
+            return token;
+        })
+        .catch(error => {
+
+            localStorage.removeItem("access_token");
+            window.location.href = "/login-page";
+
+            throw error;
+        })
+        .finally(() => {
+            refreshPromise = null;
+        });
+    }
+
+    return refreshPromise;
+}
+
+
+async function apiFetch(url, options = {}) {
+
+    const makeRequest = () => {
+
+        const headers = new Headers(options.headers || {});
+
+        headers.set("Authorization", `Bearer ${token}`);
+
+        return fetch(url, {
+            ...options,
+            headers,
+            credentials: "same-origin"
+        });
+    };
+
+    let response = await makeRequest();
+
+    if (response.status !== 401) {
+        return response;
+    }
+
+    await refreshAccessToken();
+
+    return makeRequest();
 }
 
 const messageMenu = document.getElementById("messageMenu");
@@ -18,16 +88,58 @@ let selectedMessage = null;
 let editingMessageId = null;
 
 const parts = window.location.pathname.split("/");
+const kind = parts[1];           // "room" or "dm"
 const roomId = Number(parts[2]);
 
-const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-const ws = new WebSocket(
-    `${protocol}//${window.location.host}/ws/${roomId}?token=${encodeURIComponent(token)}`
-);
+if (kind === "dm") {
+    apiFetch("/dms")
+        .then((res) => res.json())
+        .then((dms) => {
+            const dm = dms.find((d) => d.thread_id === roomId);
+            if (dm) document.getElementById("room-name").textContent = dm.username;
+        });
+}
 
-ws.onopen = () => console.log("CHAT WS CONNECTED");
-ws.onerror = (error) => console.error("CHAT WS ERROR:", error);
-ws.onclose = (event) => console.log("CHAT WS CLOSED:", event.code, event.reason);
+const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+const wsPath = kind === "dm" ? `/ws/dm/${roomId}` : `/ws/${roomId}`;
+
+
+
+async function connectWebSocket() {
+
+    try {
+        
+        const response = await apiFetch("/users");
+
+        if (!response.ok) {
+            throw new Error("Authentication failed");
+        }
+
+        
+        ws = new WebSocket(
+            `${protocol}//${window.location.host}${wsPath}?token=${encodeURIComponent(token)}`
+        );
+
+        ws.onopen = () => {
+            console.log("CHAT WS CONNECTED");
+        };
+
+        ws.onmessage = handleWebSocketMessage;
+
+        ws.onerror = (error) => {
+            console.error("CHAT WS ERROR:", error);
+        };
+
+        ws.onclose = (event) => {
+            console.log("CHAT WS CLOSED:", event.code, event.reason);
+        };
+
+    } catch (error) {
+        console.error("WEBSOCKET CONNECTION ERROR:", error);
+    }
+}
+
+connectWebSocket();
 
 function addSystemMessage(text) {
     const li = document.createElement("li");
@@ -54,7 +166,7 @@ function addChatMessage(msg) {
     messagesList.appendChild(li);
 }
 
-ws.onmessage = (event) => {
+function handleWebSocketMessage(event) {
     const data = JSON.parse(event.data);
     console.log("CHAT SERVER DATA:", data);
 
@@ -86,43 +198,69 @@ ws.onmessage = (event) => {
         addSystemMessage(`${data.username} left the chat`);
         return;
     }
+    if (data.type === "message_updated") {
+    console.log("EDIT EVENT RECEIVED:", data);
+
+    const messageElement = messagesList.querySelector(
+        `.message[data-message-id="${data.message_id}"]`
+    );
+
+    if (messageElement) {
+        messageElement.dataset.content = data.message;
+
+        messageElement.textContent =
+            `${messageElement.dataset.username}: ${data.message}`;
+    }
+
+    return;
+}
 };
 
-//  Sending and editing 
+
 function sendMessage() {
     const text = input.value.trim();
     if (!text) return;
 
-    // EDIT MODE
+    
     if (editingMessageId !== null) {
-        fetch(`/rooms/${roomId}/messages/${editingMessageId}`, {
-            method: "PUT",
-            headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify({ content: text }),
+
+    const editUrl = isDM
+        ? `/dm/${roomId}/messages/${editingMessageId}`
+        : `/rooms/${roomId}/messages/${editingMessageId}`;
+
+    apiFetch(editUrl, {
+        method: "PUT",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ content: text }),
+    })
+        .then((response) => {
+            if (!response.ok) {
+                throw new Error("Failed to edit message");
+            }
+
+            return response.json();
         })
-            .then((response) => {
-                if (!response.ok) throw new Error("Failed to edit message");
-                return response.json();
-            })
-            .then((updatedMessage) => {
-                selectedMessage.textContent =
-                    `${selectedMessage.dataset.username}: ${updatedMessage.content}`;
-                selectedMessage.dataset.content = updatedMessage.content;
+        .then((updatedMessage) => {
+            selectedMessage.textContent =
+                `${selectedMessage.dataset.username}: ${updatedMessage.content}`;
 
-                input.value = "";
-                editingMessageId = null;
-                selectedMessage = null;
-            })
-            .catch((error) => console.error("EDIT ERROR:", error));
-        return;
-    }
+            selectedMessage.dataset.content = updatedMessage.content;
 
-    // NORMAL MESSAGE
-    if (ws.readyState !== WebSocket.OPEN) {
-        console.error("Socket not open, state:", ws.readyState);
+            input.value = "";
+            editingMessageId = null;
+            selectedMessage = null;
+        })
+        .catch((error) => console.error("EDIT ERROR:", error));
+
+    return;
+}
+
+    
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+        console.error("Socket not open, state:");
         return;
     }
 
@@ -147,7 +285,7 @@ menuButton.addEventListener("click", () => {
     alert("Menu coming soon!");
 });
 
-// Right-click menu for your own messages 
+
 messagesList.addEventListener("contextmenu", (event) => {
     const message = event.target.closest(".message");
     if (!message) return;
@@ -175,7 +313,7 @@ deleteButton.addEventListener("click", async () => {
     const messageId = Number(selectedMessage.dataset.messageId);
 
     try {
-        const response = await fetch(`/rooms/${roomId}/messages/${messageId}`, {
+        const response = await apiFetch(`/rooms/${roomId}/messages/${messageId}`, {
             method: "DELETE",
             headers: { Authorization: `Bearer ${token}` },
         });

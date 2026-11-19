@@ -9,16 +9,26 @@ from argon2 import PasswordHasher
 from sqlalchemy.orm import Session
 from models import User, Room, Message
 from database import get_db
-from security import create_access_token,verify_access_token
+from security import create_access_token,verify_access_token,hash_refresh_token
 from fastapi.security import OAuth2PasswordBearer
 from fastapi.security import OAuth2PasswordRequestForm
-from database import engine
-from models import Base,Room,User,Message,RoomMember
+from database import engine,SessionLocal
+from models import Base,Room,User,Message,RoomMember,DMThread,DMMessage
 from dotenv import load_dotenv
 from sqlalchemy import select
 import secrets,hashlib
 import datetime as dt
-from fastapi import Cookie,Response
+from models import RefreshToken
+from sqlalchemy import or_
+from fastapi import Response,Cookie
+from services.auth_service import create_refresh_token
+from sqlalchemy.exc import SQLAlchemyError
+import os
+from datetime import datetime,timezone
+
+
+
+
 
 
 
@@ -30,7 +40,7 @@ load_dotenv()
 
 
 
-Base.metadata.create_all(bind=engine)
+
 
 app = FastAPI()
 
@@ -186,11 +196,9 @@ async def register(
 
 
         
-    
-    
-
 @app.post("/login")
 def login(
+    response: Response,
     user_data: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db)
 ):
@@ -214,17 +222,183 @@ def login(
             status_code=401,
             detail="Invalid username or password"
         )
+
+    try:
+        # Generate access token
+        access_token = create_access_token(
+            data={"sub": str(user.id)}
+        )
+
+        # Generate and store refresh token
+        refresh_token = create_refresh_token(
+            db=db,
+            user_id=user.id
+        )
+
+        db.commit()
+
+        # Send refresh token through HttpOnly cookie
+        response.set_cookie(
+            key="refresh_token",
+            value=refresh_token,
+            httponly=True,
+            secure=os.getenv("COOKIE_SECURE", "false").lower() == "true",
+            samesite="lax",
+            max_age=7 * 24 * 60 * 60,
+            path="/"
+        )
+
+        return {
+            "access_token": access_token,
+            "token_type": "bearer"
+        }
+
+    except SQLAlchemyError:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail="Authentication failed"
+        )    
+
+@app.post("/auth/refresh")
+def refresh_access_token(
+    response: Response,
+    refresh_token: str | None = Cookie(default=None),
+    db: Session = Depends(get_db)
+):
+
+    # 1. Check whether cookie exists
+    if not refresh_token:
+        raise HTTPException(
+            status_code=401,
+            detail="Refresh token missing"
+        )
+
+    # 2. Hash incoming token
+    token_hash = hash_refresh_token(refresh_token)
+
+    # 3. Find token in database and lock its row
+    stored_token = (
+        db.query(RefreshToken)
+        .filter(RefreshToken.token_hash == token_hash)
+        .with_for_update()
+        .first()
+    )
+
+    if not stored_token:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid refresh token"
+        )
+
+    # 4. Check whether token was already revoked
+    if stored_token.revoked_at is not None:
+
+        # Possible token reuse: revoke entire family
+        db.query(RefreshToken).filter(
+            RefreshToken.family_id == stored_token.family_id
+        ).update(
+            {
+                RefreshToken.revoked_at: datetime.now(timezone.utc)
+            },
+            synchronize_session=False
+        )
+
+        db.commit()
+
+        response.delete_cookie(
+            key="refresh_token",
+            path="/"
+        )
+
+        raise HTTPException(
+            status_code=401,
+            detail="Refresh token reuse detected"
+        )
+
+    # 5. Check expiration
+    if stored_token.expires_at <= datetime.now(timezone.utc):
+        stored_token.revoked_at = datetime.now(timezone.utc)
+        db.commit()
+
+        response.delete_cookie(
+            key="refresh_token",
+            path="/"
+        )
+
+        raise HTTPException(
+            status_code=401,
+            detail="Refresh token expired"
+        )
+
+    try:
+        # 6. Generate new access token
+        access_token = create_access_token(
+            data={"sub": str(stored_token.user_id)}
+        )
+
+        # 7. Generate new refresh token
+        new_refresh_token = create_refresh_token(
+            db=db,
+            user_id=stored_token.user_id,
+            family_id=stored_token.family_id
+        )
+
+        # 8. Revoke old refresh token
+        stored_token.revoked_at = datetime.now(timezone.utc)
+
+        # 9. Track replacement token
+        stored_token.replaced_by_token_hash = hash_refresh_token(
+            new_refresh_token
+        )
+
+        db.commit()
+
+        # 10. Set new refresh token cookie
+        response.set_cookie(
+            key="refresh_token",
+            value=new_refresh_token,
+            httponly=True,
+            secure=os.getenv("COOKIE_SECURE", "false").lower() == "true",
+            samesite="lax",
+            max_age=7 * 24 * 60 * 60,
+            path="/"
+        )
+
+        return {
+            "access_token": access_token,
+            "token_type": "bearer"
+        }
+
     
 
-    access_token = create_access_token(
-    data={"sub": str(user.id)})
-    
+    except Exception:
+        db.rollback()
+        raise
 
+@app.post("/auth/logout")
+def logout(
+    response: Response,
+    refresh_token: str | None = Cookie(default=None),
+    db: Session = Depends(get_db)
+):
+    if refresh_token:
+        token_hash = hash_refresh_token(refresh_token)
 
-    return {
-    "access_token": access_token,
-    "token_type": "bearer"
-}
+        stored_token = db.query(RefreshToken).filter(
+            RefreshToken.token_hash == token_hash
+        ).first()
+
+        if stored_token:
+            stored_token.revoked_at = datetime.now(timezone.utc)
+            db.commit()
+
+    response.delete_cookie(
+        key="refresh_token",
+        path="/"
+    )
+
+    return {"message": "Logged out successfully"}
 
 @app.get("/test-db")
 def test_db(db: Session = Depends(get_db)):
@@ -285,6 +459,7 @@ class ConnectionManager:
 
 
 manager = ConnectionManager()
+dm_manager = ConnectionManager()
 
 
 
@@ -670,68 +845,174 @@ def list_users(
     return [{"id": u.id, "username": u.username} for u in users]
 
 
-@app.post("/dms/{other_user_id}")
-def open_direct_message(
-    other_user_id: int,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    if other_user_id == current_user.id:
-        raise HTTPException(status_code=400, detail="You can't DM yourself")
 
-    other = db.query(User).filter(User.id == other_user_id).first()
-    if other is None:
+@app.post("/dms/{other_user_id}")
+def open_dm(
+    other_user_id: int,
+    me: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    if other_user_id == me.id:
+        raise HTTPException(status_code=400, detail="You can't message yourself")
+    if db.get(User, other_user_id) is None:
         raise HTTPException(status_code=404, detail="User not found")
 
-    # Reuse an existing DM between these two users
-    existing = (
-        db.query(Room)
-        .join(RoomMember, RoomMember.room_id == Room.id)
-        .filter(
-            Room.is_direct.is_(True),
-            RoomMember.user_id == other_user_id,
-            Room.id.in_(
-                select(RoomMember.room_id).where(RoomMember.user_id == current_user.id)
-            )
-        )
-        .first()
-    )
-    if existing:
-        return {"room_id": existing.id}
-
-    dm = Room(name=None, is_direct=True)
-    db.add(dm)
-    db.flush()  # gets dm.id without committing yet
-
-    db.add_all([
-        RoomMember(room_id=dm.id, user_id=current_user.id),
-        RoomMember(room_id=dm.id, user_id=other_user_id),
-    ])
-    db.commit()
-
-    # Deliberately no room_list_manager.broadcast() here: DMs stay off the public list
-    return {"room_id": dm.id}
+    thread = get_or_create_thread(db, me.id, other_user_id)
+    return {"thread_id": thread.id}
 
 
 @app.get("/dms")
-def my_direct_messages(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+def list_dms(
+    me: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
-    rows = (
-        db.query(Room.id, User.username)
-        .join(RoomMember, RoomMember.room_id == Room.id)
-        .join(User, User.id == RoomMember.user_id)
-        .filter(
-            Room.is_direct.is_(True),
-            RoomMember.user_id != current_user.id,
-            Room.id.in_(
-                select(RoomMember.room_id).where(RoomMember.user_id == current_user.id)
-            )
+    threads = db.query(DMThread).filter(
+        or_(DMThread.user_a_id == me.id, DMThread.user_b_id == me.id)
+    ).all()
+
+    result = []
+    for t in threads:
+        other_id = t.user_b_id if t.user_a_id == me.id else t.user_a_id
+        other = db.get(User, other_id)
+        result.append({"thread_id": t.id, "username": other.username})
+    return result
+
+dm_connections: dict[int, set[WebSocket]] = {}
+
+@app.websocket("/ws/dm/{thread_id}")
+async def dm_socket(websocket: WebSocket, thread_id: int, token: str):
+    user_id = verify_access_token(token)
+    if user_id is None:
+        await websocket.close(code=1008)
+        return
+
+    db = SessionLocal()
+    try:
+        thread = db.get(DMThread, thread_id)
+        me_id = int(user_id)
+        if thread is None or me_id not in (thread.user_a_id, thread.user_b_id):
+            await websocket.close(code=1008)
+            return
+
+        me = db.get(User, me_id)
+        history = (
+            db.query(DMMessage)
+            .filter(DMMessage.thread_id == thread_id)
+            .order_by(DMMessage.id)
+            .all()
         )
-        .all()
-    )
-    return [{"room_id": r.id, "username": r.username} for r in rows]
+        await websocket.accept()
+        dm_connections.setdefault(thread_id, set()).add(websocket)
 
+        await websocket.send_json({
+            "type": "chat_history",
+            "user_id": me_id,
+            "messages": [
+                {
+                    "message_id": m.id,
+                    "user_id": m.user_id,
+                    "username": db.get(User, m.user_id).username,
+                    "message": m.content,
+                }
+                for m in history
+            ],
+        })
 
+        while True:
+            text = await websocket.receive_text()
+            msg = DMMessage(thread_id=thread_id, user_id=me_id, content=text)
+            db.add(msg)
+            db.commit()
+            db.refresh(msg)
 
+            payload = {
+                "type": "message",
+                "message_id": msg.id,
+                "user_id": me_id,
+                "username": me.username,
+                "message": text,
+            }
+            for conn in list(dm_connections.get(thread_id, [])):
+                await conn.send_json(payload)
+
+    except WebSocketDisconnect:
+        pass
+    finally:
+        dm_connections.get(thread_id, set()).discard(websocket)
+        db.close()
+
+def get_or_create_thread(db: Session, a: int, b: int) -> DMThread:
+    lo, hi = sorted((a, b))
+    thread = db.query(DMThread).filter_by(user_a_id=lo, user_b_id=hi).first()
+    if thread is None:
+        thread = DMThread(user_a_id=lo, user_b_id=hi)
+        db.add(thread)
+        db.commit()
+        db.refresh(thread)
+    return thread
+
+@app.get("/dm/{thread_id}")
+def dm_page(thread_id: int, request: Request, db: Session = Depends(get_db)):
+    thread = db.get(DMThread, thread_id)
+    if thread is None:
+        raise HTTPException(status_code=404, detail="Chat not found")
+
+    return templates.TemplateResponse(request, "room.html", {
+        "room_name": "Direct message",
+        "room_id": thread_id,
+        "is_dm": True,
+    })
+@app.put("/dm/{thread_id}/messages/{message_id}")
+async def update_dm_message(
+    thread_id: int,
+    message_id: int,
+    message: MessageUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    thread = db.query(DMThread).filter(
+        DMThread.id == thread_id,
+        or_(
+            DMThread.user_a_id == current_user.id,
+            DMThread.user_b_id == current_user.id
+        )
+    ).first()
+
+    if not thread:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+
+    editable_message = db.query(DMMessage).filter(
+        DMMessage.id == message_id,
+        DMMessage.thread_id == thread_id,
+        DMMessage.user_id == current_user.id
+    ).first()
+
+    if not editable_message:
+        raise HTTPException(status_code=404, detail="Message not found")
+
+    editable_message.content = message.content
+
+    db.commit()
+    db.refresh(editable_message)
+
+    # Notify everyone connected to this DM thread
+    payload = {
+        "type": "message_updated",
+        "message_id": editable_message.id,
+        "user_id": editable_message.user_id,
+        "message": editable_message.content
+    }
+    print("BROADCASTING EDIT:", payload)
+    print("CONNECTED CLIENTS:", len(dm_connections.get(thread_id, set())))
+
+    for conn in list(dm_connections.get(thread_id, set())):
+        try:
+            await conn.send_json(payload)
+        except Exception:
+            dm_connections.get(thread_id, set()).discard(conn)
+
+    return {
+        "message": "Message updated successfully",
+        "message_id": editable_message.id,
+        "content": editable_message.content
+    }

@@ -36,14 +36,14 @@ body {
    Responsive Design
 ========================= */
 
-@media (max-width: 768px) {
-
-    html,
-    body {
-        width: 100%;
-        height: 100%;
-        overflow: hidden;
-    }
+html,
+body {
+    width: 100%;
+    min-height: 100%;
+    height: auto;
+    overflow-x: hidden;
+    overflow-y: auto;
+}
 
     .chat-container {
         width: 100%;
@@ -139,7 +139,7 @@ body {
 
         font-size: 18px;
     }
-}
+
 
 
 /* =========================

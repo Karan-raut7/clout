@@ -3,6 +3,9 @@ from datetime import datetime, timedelta, timezone
 
 import jwt
 from dotenv import load_dotenv
+import secrets
+import hashlib
+import uuid
 
 load_dotenv()
 
@@ -10,7 +13,7 @@ SECRET_KEY = os.environ["SECRET_KEY"]
 ALGORITHM = "HS256"
 
 
-def create_access_token(data: dict, expires_minutes: int = 30):
+def create_access_token(data: dict, expires_minutes: int = 1):
     to_encode = data.copy()
 
     expire = datetime.now(timezone.utc) + timedelta(
@@ -41,3 +44,16 @@ def verify_access_token(token: str):
 
     except jwt.InvalidTokenError:
         return None
+
+
+def generate_refresh_token():
+    return secrets.token_urlsafe(64)
+
+def hash_refresh_token(token:str):
+    return hashlib.sha256(
+        token.encode("utf-8")
+    ).hexdigest()
+def generate_token_family_id():
+    return str(uuid.uuid4())
+
+
